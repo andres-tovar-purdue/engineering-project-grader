@@ -247,3 +247,7 @@ __pycache__/
 # OpenAI API key files
 .env
 .env.*
+
+# Private/generated student grading data
+**/grader/student_map.json
+**/grader/submission_manifest.json

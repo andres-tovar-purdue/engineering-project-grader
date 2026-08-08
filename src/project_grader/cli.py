@@ -5,6 +5,7 @@ from project_grader.project_inspection import inspect_project
 from project_grader.project_manifest import write_project_manifest
 from project_grader.spec_validation import validate_grading_spec
 from project_grader.spec_generation import generate_grading_spec
+from project_grader.submission_processing import write_submission_manifest
 
 import os
 
@@ -82,6 +83,17 @@ def main():
         "--allow-unresolved",
         action="store_true",
         help="Allow approval even when unresolved ambiguities remain."
+    )
+
+    # prepare-submissions command
+    prepare_parser = subparsers.add_parser(
+        "prepare-submissions",
+        help="Prepare and anonymize student submissions."
+    )
+
+    prepare_parser.add_argument(
+        "project_path",
+        help="Path to the project folder."
     )
 
     args = parser.parse_args()
@@ -199,3 +211,25 @@ def main():
                 f"Warning: approved with "
                 f"{len(unresolved)} unresolved ambiguity/ambiguities."
             )
+
+    elif args.command == "prepare-submissions":
+        manifest_path, map_path, manifest = (
+            write_submission_manifest(
+                args.project_path
+            )
+        )
+
+        print(
+            f"Submission manifest written to: "
+            f"{manifest_path}"
+        )
+
+        print(
+            f"Student map written to: "
+            f"{map_path}"
+        )
+
+        print(
+            f"Submissions found: "
+            f"{manifest['submission_count']}"
+        )
