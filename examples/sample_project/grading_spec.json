@@ -1,0 +1,150 @@
+{
+  "schema_version": "1.0",
+  "spec_version": "0.1",
+  "status": "draft",
+
+  "project": {
+    "project_id": "sample_project",
+    "course": "SAMPLE 10000",
+    "term": "Example",
+    "title": "Synthetic Engineering Programming Project",
+    "total_points": 10,
+    "description": "Synthetic project used to test the grading specification schema."
+  },
+
+  "sources": [
+    {
+      "source_id": "project_instructions",
+      "source_type": "project_instructions",
+      "path": "project/sample_project.pdf",
+      "description": "Published project instructions.",
+      "required_for_grading": true
+    }
+  ],
+
+  "deliverables": [
+    {
+      "deliverable_id": "python_script",
+      "description": "Python source file submitted by the student.",
+      "required": true,
+      "file_patterns": [
+        "*.py"
+      ],
+      "file_types": [
+        "python"
+      ],
+      "applies_to_tasks": [
+        "task_1"
+      ],
+      "missing_rule": "follow_criterion_rules"
+    }
+  ],
+
+  "tasks": [
+    {
+      "task_id": "task_1",
+      "title": "Data Analysis",
+      "description": "Import data, calculate a result, and report the result.",
+      "max_points": 10,
+      "source_refs": [
+        "project_instructions"
+      ],
+
+      "criteria": [
+        {
+          "criterion_id": "task_1_data_import",
+          "description": "Import the supplied CSV dataset using Python.",
+          "requirement_type": "required_method",
+          "max_points": 3,
+
+          "method_requirement": {
+            "policy": "required",
+            "methods": [
+              "pandas.read_csv"
+            ],
+            "acceptable_alternatives": []
+          },
+
+          "evidence": [
+            {
+              "evidence_type": "source_code",
+              "description": "Python code imports the supplied CSV dataset.",
+              "required": true,
+              "artifact_patterns": [
+                "*.py"
+              ],
+              "verification": "inspect"
+            }
+          ],
+
+          "full_credit_condition": "The submitted program imports the supplied CSV dataset using pandas.read_csv().",
+
+          "deduction_rules": [
+            {
+              "rule_id": "missing_import",
+              "condition": "The required CSV file is not imported.",
+              "deduction_points": 3,
+              "feedback_template": "Required CSV import is missing.",
+              "review_if_uncertain": true
+            }
+          ],
+
+          "acceptable_alternatives": [],
+          "dependencies": [],
+
+          "error_propagation": {
+            "policy": "independent"
+          },
+
+          "review_triggers": [
+            "The dataset appears to be embedded or recreated instead of imported."
+          ]
+        },
+
+        {
+          "criterion_id": "task_1_result",
+          "description": "Calculate and report the requested engineering result.",
+          "requirement_type": "numerical_result",
+          "max_points": 7,
+
+          "evidence": [
+            {
+              "evidence_type": "numerical_output",
+              "description": "Reported numerical result.",
+              "required": true,
+              "verification": "compare"
+            }
+          ],
+
+          "full_credit_condition": "The requested result is calculated correctly from the supplied data.",
+
+          "deduction_rules": [],
+
+          "acceptable_alternatives": [],
+          "dependencies": [
+            "task_1_data_import"
+          ],
+
+          "error_propagation": {
+            "policy": "follow_through_credit",
+            "notes": "If an upstream data error propagates consistently, evaluate the downstream method independently."
+          },
+
+          "review_triggers": [
+            "The numerical result differs from the reference but the calculation method may be valid."
+          ]
+        }
+      ],
+
+      "review_triggers": []
+    }
+  ],
+
+  "known_ambiguities": [],
+
+  "global_review_triggers": [
+    "Submission uses an unusual but potentially valid technical approach."
+  ],
+
+  "notes": "Synthetic example only. Contains no student data."
+}
