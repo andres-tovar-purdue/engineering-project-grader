@@ -275,6 +275,8 @@ Do not use insulting, speculative, or judgmental language.
 
 - Never award more than the maximum points available for a criterion.
 - Never assign a negative criterion score.
+- Total deductions applied to a criterion must never exceed that criterion's maximum points.
+- When multiple deduction rules describe the same underlying deficiency, apply the most appropriate deduction rather than stacking overlapping penalties.
 - Verify that criterion scores sum correctly to the reported total.
 - Preserve point values defined in the approved grading specification.
 - Report the AI-generated score as preliminary until approved by the instructor.

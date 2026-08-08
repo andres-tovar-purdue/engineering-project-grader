@@ -4,7 +4,14 @@ from pathlib import Path
 from project_grader.project_inspection import inspect_project
 from project_grader.project_manifest import write_project_manifest
 from project_grader.spec_validation import validate_grading_spec
+from project_grader.spec_generation import generate_grading_spec
 
+import os
+
+from dotenv import load_dotenv
+from project_grader.spec_approval import approve_grading_spec
+
+load_dotenv()
 
 def main():
     parser = argparse.ArgumentParser(
@@ -47,6 +54,34 @@ def main():
     manifest_parser.add_argument(
         "project_path",
         help="Path to the project folder."
+    )
+
+    # generate-spec command
+    generate_spec_parser = subparsers.add_parser(
+        "generate-spec",
+        help="Generate a draft project-specific grading specification."
+    )
+
+    generate_spec_parser.add_argument(
+        "project_path",
+        help="Path to the project folder."
+    )
+
+    # approve-spec command
+    approve_spec_parser = subparsers.add_parser(
+        "approve-spec",
+        help="Approve an instructor-reviewed grading specification."
+    )
+
+    approve_spec_parser.add_argument(
+        "spec_path",
+        help="Path to the draft grading specification."
+    )
+
+    approve_spec_parser.add_argument(
+        "--allow-unresolved",
+        action="store_true",
+        help="Allow approval even when unresolved ambiguities remain."
     )
 
     args = parser.parse_args()
@@ -98,3 +133,69 @@ def main():
             f"Submission folders: "
             f"{manifest['submission_count']}"
         )
+
+    elif args.command == "generate-spec":
+        schema_path = (
+            Path(__file__).resolve().parents[2]
+            / "schemas"
+            / "grading_spec.schema.json"
+        )
+
+        output_path, spec = generate_grading_spec(
+            args.project_path,
+            schema_path,
+        )
+
+        print(
+            f"Draft grading specification written to: "
+            f"{output_path}"
+        )
+
+        print(
+            f"Tasks generated: "
+            f"{len(spec['tasks'])}"
+        )
+
+        print(
+            "Grading specification passed schema validation."
+        )
+
+    elif args.command == "approve-spec":
+        schema_path = (
+            Path(__file__).resolve().parents[2]
+            / "schemas"
+            / "grading_spec.schema.json"
+        )
+
+        approved_by = os.getenv(
+            "GRADER_INSTRUCTOR_NAME"
+        )
+
+        if not approved_by:
+            raise RuntimeError(
+                "GRADER_INSTRUCTOR_NAME was not found. "
+                "Add it to the local .env file."
+            )
+
+        output_path, spec, unresolved = approve_grading_spec(
+            args.spec_path,
+            schema_path,
+            approved_by=approved_by,
+            allow_unresolved=args.allow_unresolved,
+        )
+
+        print(
+            f"Grading specification approved: "
+            f"{output_path}"
+        )
+
+        print(
+            f"Approved by: "
+            f"{spec['approval']['approved_by']}"
+        )
+
+        if unresolved:
+            print(
+                f"Warning: approved with "
+                f"{len(unresolved)} unresolved ambiguity/ambiguities."
+            )

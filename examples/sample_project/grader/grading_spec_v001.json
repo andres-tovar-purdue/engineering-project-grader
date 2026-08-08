@@ -1,0 +1,365 @@
+{
+  "schema_version": "1.0",
+  "spec_version": "0.1",
+  "status": "approved",
+  "project": {
+    "project_id": "sample_project",
+    "title": "Synthetic Engineering Programming Project",
+    "total_points": 10,
+    "description": "Students submit one Python script named analysis.py that imports speed_data.csv, computes and prints mean vehicle speed, and creates/saves a speed-versus-time plot."
+  },
+  "sources": [
+    {
+      "source_id": "project_project_instructions_md",
+      "source_type": "project_instructions",
+      "path": "project/project_instructions.md",
+      "description": "Published project instructions defining required submission, data import, mean speed calculation, and plot requirements.",
+      "required_for_grading": true
+    },
+    {
+      "source_id": "rubric_instructor_rubric_md",
+      "source_type": "rubric",
+      "path": "rubric/instructor_rubric.md",
+      "description": "Instructor grading guidance specifying point allocation and acceptable plotting flexibility.",
+      "required_for_grading": true
+    }
+  ],
+  "deliverables": [
+    {
+      "deliverable_id": "D1",
+      "description": "Python script named analysis.py.",
+      "required": true,
+      "file_patterns": [
+        "analysis.py"
+      ],
+      "file_types": [
+        ".py"
+      ],
+      "applies_to_tasks": [
+        "T1"
+      ],
+      "missing_rule": "zero_affected_criteria",
+      "notes": "Project instructions explicitly require one Python script named analysis.py."
+    },
+    {
+      "deliverable_id": "D2",
+      "description": "Saved plot image named speed_plot.png.",
+      "required": true,
+      "file_patterns": [
+        "speed_plot.png"
+      ],
+      "file_types": [
+        ".png"
+      ],
+      "applies_to_tasks": [
+        "T1"
+      ],
+      "missing_rule": "zero_affected_criteria",
+      "notes": "The script should save the required speed-versus-time plot as speed_plot.png."
+    }
+  ],
+  "tasks": [
+    {
+      "task_id": "T1",
+      "title": "Data Analysis",
+      "description": "Import speed_data.csv using pandas.read_csv(), calculate and print the mean vehicle speed in km/h, and create/save a speed-versus-time plot with required axis units and title.",
+      "max_points": 10,
+      "source_refs": [
+        "project_project_instructions_md",
+        "rubric_instructor_rubric_md"
+      ],
+      "criteria": [
+        {
+          "criterion_id": "T1.C1",
+          "description": "Data import using pandas.read_csv().",
+          "requirement_type": "required_method",
+          "max_points": 3,
+          "source_refs": [
+            "project_project_instructions_md",
+            "rubric_instructor_rubric_md"
+          ],
+          "method_requirement": {
+            "policy": "required",
+            "methods": [
+              "pandas.read_csv()"
+            ],
+            "acceptable_alternatives": [],
+            "notes": "The instructions explicitly require pandas.read_csv() to import the supplied speed_data.csv file."
+          },
+          "evidence": [
+            {
+              "evidence_type": "source_code",
+              "description": "analysis.py imports pandas and uses pandas.read_csv() or an equivalent pandas namespace call such as pd.read_csv() to read speed_data.csv.",
+              "required": true,
+              "artifact_patterns": [
+                "analysis.py"
+              ],
+              "location_hint": "Data import section of analysis.py",
+              "verification": "inspect"
+            },
+            {
+              "evidence_type": "execution_result",
+              "description": "When run in an environment containing the supplied speed_data.csv file, the script reads the CSV rather than relying solely on manually hard-coded data.",
+              "required": true,
+              "artifact_patterns": [
+                "analysis.py",
+                "speed_data.csv"
+              ],
+              "verification": "execute"
+            }
+          ],
+          "full_credit_condition": "The submitted analysis.py uses pandas.read_csv() to import the supplied speed_data.csv file and uses the imported data as the basis for the analysis.",
+          "deduction_rules": [
+            {
+              "rule_id": "T1.C1.D1",
+              "condition": "No use of pandas.read_csv() or equivalent pandas read_csv call is present for importing the CSV data.",
+              "deduction_points": 3,
+              "feedback_template": "The assignment required importing speed_data.csv using pandas.read_csv().",
+              "review_if_uncertain": true
+            }
+          ],
+          "acceptable_alternatives": [
+            "Use of an alias such as import pandas as pd followed by pd.read_csv(...) is acceptable.",
+            "Technically equivalent file path handling is acceptable if it reads the supplied speed_data.csv file."
+          ],
+          "error_propagation": {
+            "policy": "instructor_review",
+            "notes": "If the CSV import is partially correct but file path assumptions prevent execution in the grading environment, review whether the code clearly satisfies the required import method."
+          },
+          "review_triggers": [
+            "Student manually hard-codes the dataset instead of reading the CSV; rubric says not to award full credit but does not specify the exact partial-credit amount.",
+            "Code reads a CSV file but the filename or path differs from speed_data.csv.",
+            "Code uses pandas.read_csv() but then ignores the imported data."
+          ],
+          "feedback_guidance": "Credit should focus on whether the required pandas.read_csv() import of speed_data.csv is actually used for the analysis."
+        },
+        {
+          "criterion_id": "T1.C2",
+          "description": "Correct calculation and reporting of mean vehicle speed.",
+          "requirement_type": "numerical_result",
+          "max_points": 4,
+          "source_refs": [
+            "project_project_instructions_md",
+            "rubric_instructor_rubric_md"
+          ],
+          "method_requirement": {
+            "policy": "not_prescribed",
+            "methods": [],
+            "acceptable_alternatives": [
+              "Any technically valid Python, pandas, or numerical approach may be used to compute the mean from the imported speed data."
+            ],
+            "notes": "The assignment requires the mean vehicle speed in km/h to be calculated and printed, but does not prescribe a calculation function."
+          },
+          "evidence": [
+            {
+              "evidence_type": "source_code",
+              "description": "analysis.py calculates the mean of the vehicle speed values from the imported dataset.",
+              "required": true,
+              "artifact_patterns": [
+                "analysis.py"
+              ],
+              "location_hint": "Mean speed calculation section",
+              "verification": "inspect"
+            },
+            {
+              "evidence_type": "numerical_output",
+              "description": "The script prints or otherwise reports the mean vehicle speed in km/h when executed.",
+              "required": true,
+              "artifact_patterns": [
+                "analysis.py"
+              ],
+              "location_hint": "Console/stdout output",
+              "verification": "execute"
+            },
+            {
+              "evidence_type": "numerical_output",
+              "description": "Reported mean agrees with the mean calculated from the supplied speed_data.csv speed values, subject to reasonable formatting or rounding.",
+              "required": true,
+              "artifact_patterns": [
+                "analysis.py",
+                "speed_data.csv"
+              ],
+              "verification": "compare"
+            }
+          ],
+          "full_credit_condition": "The submitted script correctly computes the mean vehicle speed from the imported speed data and prints/reports the mean in km/h.",
+          "deduction_rules": [
+            {
+              "rule_id": "T1.C2.D1",
+              "condition": "No mean vehicle speed is calculated or reported.",
+              "deduction_points": 4,
+              "feedback_template": "The assignment required calculating and printing the mean vehicle speed in km/h.",
+              "review_if_uncertain": true
+            }
+          ],
+          "acceptable_alternatives": [
+            "Any clear printed format is acceptable if the value is identifiable as mean vehicle speed and the units km/h are clear from context or label.",
+            "Reasonable numeric formatting or rounding is acceptable if the underlying calculation is correct."
+          ],
+          "dependencies": [
+            "T1.C1"
+          ],
+          "error_propagation": {
+            "policy": "follow_through_credit",
+            "notes": "If an earlier data import error causes an incorrect mean, award credit here for a technically correct mean calculation applied consistently to the student's imported data, subject to instructor review for severe data-handling errors."
+          },
+          "review_triggers": [
+            "The expected mean cannot be independently verified because the supplied speed_data.csv file is unavailable.",
+            "The output contains multiple numbers and it is unclear which is the mean vehicle speed.",
+            "The script calculates a statistic other than the mean, such as median, maximum, or average of time."
+          ],
+          "feedback_guidance": "Evaluate both the numerical correctness of the mean speed and whether it is reported/printed as required."
+        },
+        {
+          "criterion_id": "T1.C3",
+          "description": "Speed-versus-time plot with required labels, units, title, and saved filename.",
+          "requirement_type": "visualization",
+          "max_points": 3,
+          "source_refs": [
+            "project_project_instructions_md",
+            "rubric_instructor_rubric_md"
+          ],
+          "method_requirement": {
+            "policy": "not_prescribed",
+            "methods": [],
+            "acceptable_alternatives": [
+              "Any technically equivalent plotting implementation is acceptable."
+            ],
+            "notes": "Instructor guidance explicitly states that a technically equivalent plotting implementation is acceptable."
+          },
+          "evidence": [
+            {
+              "evidence_type": "source_code",
+              "description": "analysis.py creates a plot of vehicle speed versus time using the imported data.",
+              "required": true,
+              "artifact_patterns": [
+                "analysis.py"
+              ],
+              "location_hint": "Plotting section",
+              "verification": "inspect"
+            },
+            {
+              "evidence_type": "plot",
+              "description": "Generated plot has time in seconds on the x-axis, speed in km/h on the y-axis, and a descriptive title.",
+              "required": true,
+              "artifact_patterns": [
+                "speed_plot.png"
+              ],
+              "verification": "inspect"
+            },
+            {
+              "evidence_type": "file_presence",
+              "description": "The plot is saved as speed_plot.png.",
+              "required": true,
+              "artifact_patterns": [
+                "speed_plot.png"
+              ],
+              "verification": "presence_only"
+            }
+          ],
+          "full_credit_condition": "The script creates and saves speed_plot.png showing vehicle speed versus time, with time in seconds on the x-axis, speed in km/h on the y-axis, and a descriptive title.",
+          "deduction_rules": [
+            {
+              "rule_id": "T1.C3.D1",
+              "condition": "No speed-versus-time plot is created or saved.",
+              "deduction_points": 3,
+              "feedback_template": "The assignment required a saved speed-versus-time plot named speed_plot.png.",
+              "review_if_uncertain": true
+            }
+          ],
+          "acceptable_alternatives": [
+            "Matplotlib, pandas plotting, seaborn, or another technically equivalent Python plotting approach is acceptable if the required plot content and saved output are present.",
+            "Minor wording differences in labels or title are acceptable if the x-axis clearly indicates time in seconds, the y-axis clearly indicates speed in km/h, and the title is descriptive."
+          ],
+          "dependencies": [
+            "T1.C1"
+          ],
+          "error_propagation": {
+            "policy": "follow_through_credit",
+            "notes": "If imported data values are wrong due to an earlier import issue, evaluate whether the plotting code correctly plots the student's time and speed data with required labels/title and saved filename."
+          },
+          "review_triggers": [
+            "The plot is generated interactively but speed_plot.png is missing.",
+            "The plot file exists but labels, units, or title are absent or ambiguous.",
+            "The axes appear swapped or the plotted variables are not clearly time and speed.",
+            "The saved file has a different name or format than speed_plot.png."
+          ],
+          "feedback_guidance": "Do not require a specific plotting library or style; focus on required variables, labels with units, descriptive title, and saved filename."
+        }
+      ],
+      "review_triggers": [
+        "analysis.py is missing, misnamed, or not executable as a Python script.",
+        "speed_data.csv is not available to the grader, making independent numerical verification impossible.",
+        "Student submission contains multiple scripts or notebooks and it is unclear which artifact is intended as analysis.py.",
+        "The code requires nonstandard packages beyond those implied by pandas/plotting without documenting them."
+      ],
+      "notes": "The rubric allocates all 10 points across the three stated criteria."
+    }
+  ],
+  "known_ambiguities": [
+    {
+      "ambiguity_id": "A1",
+      "description": "The project instructions refer to a supplied speed_data.csv file, but the dataset content and column names are not included in the provided source materials. This limits defensible specification of expected numeric mean value and exact column references.",
+      "source_refs": [
+        "project_project_instructions_md"
+      ],
+      "affects": [
+        "T1.C1",
+        "T1.C2",
+        "T1.C3"
+      ],
+      "status": "unresolved",
+      "agent_proposed_interpretation": "Grade against the actual supplied speed_data.csv file if available in the grading environment; otherwise flag numerical verification for instructor review."
+    },
+    {
+      "ambiguity_id": "A2",
+      "description": "The rubric says not to award full credit for the data-import criterion if the student manually hard-codes the dataset instead of reading the CSV, but it does not specify how many of the 3 data-import points may be earned in that case.",
+      "source_refs": [
+        "rubric_instructor_rubric_md"
+      ],
+      "affects": [
+        "T1.C1"
+      ],
+      "status": "unresolved",
+      "agent_proposed_interpretation": "Flag hard-coded-data submissions for instructor review rather than imposing a draft partial-credit amount."
+    },
+    {
+      "ambiguity_id": "A3",
+      "description": "Detailed partial-credit breakdowns within the 4-point mean-speed criterion and 3-point plotting criterion are not specified beyond the top-level rubric categories.",
+      "source_refs": [
+        "rubric_instructor_rubric_md"
+      ],
+      "affects": [
+        "T1.C2",
+        "T1.C3"
+      ],
+      "status": "unresolved",
+      "agent_proposed_interpretation": "Use the full-credit conditions and review triggers in this draft specification, with instructor judgment for partial credit when a submission is incomplete but not entirely absent."
+    },
+    {
+      "ambiguity_id": "A4",
+      "description": "The instructions require the mean vehicle speed to be printed, but they do not define exact output formatting, number of decimal places, or whether the units must appear in the printed line.",
+      "source_refs": [
+        "project_project_instructions_md"
+      ],
+      "affects": [
+        "T1.C2"
+      ],
+      "status": "unresolved",
+      "agent_proposed_interpretation": "Accept any clear printed report of the mean speed, with reasonable rounding, if it is identifiable as the mean vehicle speed in km/h."
+    }
+  ],
+  "global_review_triggers": [
+    "Submission cannot be matched to the required analysis.py deliverable.",
+    "Submission appears to use a different dataset than speed_data.csv.",
+    "Code executes destructive operations or depends on absolute local paths that prevent normal grading.",
+    "Evidence suggests academic integrity concerns, such as unrelated code or fabricated outputs without corresponding computation.",
+    "A criterion is partially satisfied in a way not covered by the explicit rubric or this draft specification."
+  ],
+  "notes": "This is a draft grading specification based only on the supplied project instructions and instructor rubric. Instructor approval is needed for unresolved ambiguities and any desired detailed partial-credit rules.",
+  "approval": {
+    "approved_by": "Andres Tovar",
+    "approved_at": "2026-08-08T16:57:53-04:00",
+    "notes": "Reviewed and approved for grading."
+  }
+}

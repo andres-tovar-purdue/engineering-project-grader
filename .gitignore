@@ -243,3 +243,7 @@ local_projects/
 __pycache__/
 *.py[cod]
 *.egg-info/
+
+# OpenAI API key files
+.env
+.env.*
