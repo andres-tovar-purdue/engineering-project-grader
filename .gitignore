@@ -216,3 +216,25 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ------------------------------
+# Engineering Project Grader
+# ------------------------------
+
+# Environment variables and credentials
+.env
+.env.*
+
+# Private grading data
+private_data/
+submissions/
+grading_reports/
+
+# Student data
+student_data/
+
+# Local project data
+local_projects/
+
+# Common generated grading outputs
+*.xlsx
