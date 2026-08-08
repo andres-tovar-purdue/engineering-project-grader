@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 
 from project_grader.spec_validation import validate_grading_spec
+from project_grader.project_inspection import inspect_project
 
 
 def main():
@@ -25,6 +26,19 @@ def main():
         help="Path to the project-specific grading specification."
     )
 
+
+    # inspect command
+    inspect_parser = subparsers.add_parser(
+        "inspect",
+        help="Inspect a grading project folder."
+    )
+
+    inspect_parser.add_argument(
+        "project_path",
+        help="Path to the project folder."
+    )
+
+
     args = parser.parse_args()
 
     if args.command == "validate":
@@ -40,3 +54,24 @@ def main():
         )
 
         print("Grading specification is valid.")
+
+    elif args.command == "inspect":
+        summary = inspect_project(args.project_path)
+
+        print(f"Project: {summary['project_path']}")
+        print()
+
+        for folder_name, info in summary["folders"].items():
+            if info["exists"]:
+                print(
+                    f"{folder_name}: "
+                    f"{info['file_count']} file(s)"
+                )
+
+                for file_path in info["files"]:
+                    print(f"  - {file_path}")
+            else:
+                print(f"{folder_name}: MISSING")
+
+        print()
+        print("Project inspection complete.")

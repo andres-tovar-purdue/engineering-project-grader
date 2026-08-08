@@ -238,3 +238,8 @@ local_projects/
 
 # Common generated grading outputs
 *.xlsx
+
+# Python generated files
+__pycache__/
+*.py[cod]
+*.egg-info/
