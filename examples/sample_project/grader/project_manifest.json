@@ -1,0 +1,41 @@
+{
+  "manifest_version": "1.0",
+  "project_name": "sample_project",
+  "total_files": 1,
+  "submission_count": 0,
+  "submission_folders": [],
+  "folders": {
+    "project": {
+      "exists": true,
+      "file_count": 0,
+      "files": []
+    },
+    "datasets": {
+      "exists": true,
+      "file_count": 0,
+      "files": []
+    },
+    "rubric": {
+      "exists": true,
+      "file_count": 0,
+      "files": []
+    },
+    "reference": {
+      "exists": true,
+      "file_count": 0,
+      "files": []
+    },
+    "submissions": {
+      "exists": true,
+      "file_count": 0,
+      "files": []
+    },
+    "grader": {
+      "exists": true,
+      "file_count": 1,
+      "files": [
+        "grader/grading_spec.json"
+      ]
+    }
+  }
+}

@@ -1,8 +1,9 @@
 import argparse
 from pathlib import Path
 
-from project_grader.spec_validation import validate_grading_spec
 from project_grader.project_inspection import inspect_project
+from project_grader.project_manifest import write_project_manifest
+from project_grader.spec_validation import validate_grading_spec
 
 
 def main():
@@ -26,7 +27,6 @@ def main():
         help="Path to the project-specific grading specification."
     )
 
-
     # inspect command
     inspect_parser = subparsers.add_parser(
         "inspect",
@@ -38,6 +38,16 @@ def main():
         help="Path to the project folder."
     )
 
+    # manifest command
+    manifest_parser = subparsers.add_parser(
+        "manifest",
+        help="Create a machine-readable project manifest."
+    )
+
+    manifest_parser.add_argument(
+        "project_path",
+        help="Path to the project folder."
+    )
 
     args = parser.parse_args()
 
@@ -70,8 +80,21 @@ def main():
 
                 for file_path in info["files"]:
                     print(f"  - {file_path}")
+
             else:
                 print(f"{folder_name}: MISSING")
 
         print()
         print("Project inspection complete.")
+
+    elif args.command == "manifest":
+        output_path, manifest = write_project_manifest(
+            args.project_path
+        )
+
+        print(f"Project manifest written to: {output_path}")
+        print(f"Files inventoried: {manifest['total_files']}")
+        print(
+            f"Submission folders: "
+            f"{manifest['submission_count']}"
+        )
