@@ -3,6 +3,7 @@ from pathlib import Path
 
 from project_grader.project_inspection import inspect_project
 from project_grader.project_manifest import write_project_manifest
+from project_grader.project_preparation import prepare_project
 from project_grader.spec_validation import validate_grading_spec
 from project_grader.spec_generation import generate_grading_spec
 from project_grader.submission_processing import write_submission_manifest
@@ -22,6 +23,17 @@ def main():
     subparsers = parser.add_subparsers(
         dest="command",
         required=True
+    )
+
+    # prepare-project command
+    prepare_project_parser = subparsers.add_parser(
+        "prepare-project",
+        help="Create instructor-reviewable project preparation drafts."
+    )
+
+    prepare_project_parser.add_argument(
+        "project_path",
+        help="Path to the project folder."
     )
 
     # validate command
@@ -98,7 +110,23 @@ def main():
 
     args = parser.parse_args()
 
-    if args.command == "validate":
+    if args.command == "prepare-project":
+        result = prepare_project(args.project_path)
+
+        print("Draft project preparation artifacts written:")
+        for path in result["output_paths"].values():
+            print(f"  - {path}")
+
+        if result["limitations"]:
+            print("\nDataset limitations:")
+            for limitation in result["limitations"]:
+                print(f"  - {limitation}")
+
+        print(
+            "\nInstructor review is required before running generate-spec."
+        )
+
+    elif args.command == "validate":
         schema_path = (
             Path(__file__).resolve().parents[2]
             / "schemas"
