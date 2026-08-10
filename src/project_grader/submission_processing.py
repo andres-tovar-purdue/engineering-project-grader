@@ -1,5 +1,8 @@
+import hashlib
 import json
 import re
+import shutil
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -32,6 +35,8 @@ SPREADSHEET_EXTENSIONS = {
     ".xlsm",
     ".xls",
 }
+
+ANONYMIZED_SUBMISSIONS_FOLDER = "anonymized_submissions"
 
 
 def classify_file(path):
@@ -133,18 +138,72 @@ def parse_brightspace_folder_name(folder_name):
     }
 
 
-def inventory_submission_files(student_folder):
+def identity_variants(value):
+    """Return common filename/text forms of a known identity string."""
+    if not value:
+        return []
+    words = value.split()
+    return sorted({
+        value,
+        "_".join(words),
+        "-".join(words),
+        "".join(words),
+    }, key=len, reverse=True)
+
+
+def redact_identity(text, username, full_name):
+    """Replace known identity strings in agent-facing text."""
+    replacements = (
+        (identity_variants(full_name), "<student_name>"),
+        (identity_variants(username), "<username>"),
+    )
+    for variants, placeholder in replacements:
+        for value in variants:
+            text = re.sub(
+                re.escape(value),
+                placeholder,
+                text,
+                flags=re.IGNORECASE,
+            )
+    return text
+
+
+def anonymize_relative_path(relative_path, index, username, full_name):
+    """Create a deterministic, identity-free relative artifact path."""
+    parts = []
+    for part in relative_path.parts:
+        safe_part = redact_identity(part, username, full_name)
+        safe_part = safe_part.replace("<username>", "student")
+        safe_part = safe_part.replace("<student_name>", "student")
+        parts.append(safe_part)
+
+    parts[-1] = f"artifact_{index:03d}_{parts[-1]}"
+    return Path(*parts)
+
+
+def inventory_submission_files(
+    student_folder,
+    username,
+    full_name,
+    destination_folder=None,
+):
     """
     Inventory files contained in one Brightspace submission folder.
     """
 
     files = []
 
-    for path in sorted(student_folder.rglob("*")):
-        if not path.is_file():
-            continue
-
-        relative_path = path.relative_to(student_folder)
+    for index, path in enumerate(
+        (path for path in sorted(student_folder.rglob("*")) if path.is_file()),
+        start=1,
+    ):
+        source_relative_path = path.relative_to(student_folder)
+        relative_path = anonymize_relative_path(
+            source_relative_path,
+            index,
+            username,
+            full_name,
+        )
         file_type = classify_file(path)
 
         file_info = {
@@ -155,14 +214,32 @@ def inventory_submission_files(student_folder):
         }
 
         if file_type == "text":
-            file_info["content"] = read_text_file(path)
+            file_info["content"] = redact_identity(
+                read_text_file(path),
+                username,
+                full_name,
+            )
+            file_info["size_bytes"] = len(
+                file_info["content"].encode("utf-8")
+            )
+
+        if destination_folder is not None:
+            destination_path = destination_folder / relative_path
+            destination_path.parent.mkdir(parents=True, exist_ok=True)
+            if file_type == "text":
+                destination_path.write_text(
+                    file_info["content"],
+                    encoding="utf-8",
+                )
+            else:
+                shutil.copy2(path, destination_path)
 
         files.append(file_info)
 
     return files
 
 
-def process_submissions(project_path):
+def process_submissions(project_path, anonymized_root=None):
     """
     Parse Brightspace submission folders, group multiple attempts
     by Purdue username, select the latest submission, and assign
@@ -241,8 +318,15 @@ def process_submissions(project_path):
 
         selected_attempt = attempts[-1]
 
+        destination_folder = None
+        if anonymized_root is not None:
+            destination_folder = Path(anonymized_root) / student_id
+
         files = inventory_submission_files(
-            selected_attempt["folder"]
+            selected_attempt["folder"],
+            username,
+            selected_attempt["full_name"],
+            destination_folder,
         )
 
         review_flags = []
@@ -299,6 +383,81 @@ def process_submissions(project_path):
     )
 
 
+def validate_anonymized_manifest(manifest, student_map):
+    """Ensure known identities and source paths are absent from AI-facing JSON."""
+    serialized = json.dumps(manifest, ensure_ascii=False).casefold()
+    forbidden = []
+
+    for student in student_map.values():
+        forbidden.extend(identity_variants(student["username"]))
+        forbidden.extend(identity_variants(student["full_name"]))
+        forbidden.append(student["selected_source_folder"])
+        forbidden.extend(
+            attempt["source_folder"]
+            for attempt in student["attempts"]
+        )
+
+    leaked = [
+        value
+        for value in forbidden
+        if value and value.casefold() in serialized
+    ]
+    if leaked:
+        raise RuntimeError(
+            "Anonymized submission manifest contains identity-bearing data."
+        )
+
+    return True
+
+
+def tree_signature(root):
+    """Return relative paths, sizes, and hashes for a generated artifact tree."""
+    signature = {}
+    for path in sorted(Path(root).rglob("*")):
+        if not path.is_file():
+            continue
+        digest = hashlib.sha256()
+        with path.open("rb") as file:
+            for chunk in iter(lambda: file.read(1024 * 1024), b""):
+                digest.update(chunk)
+        signature[path.relative_to(root).as_posix()] = {
+            "size_bytes": path.stat().st_size,
+            "sha256": digest.hexdigest(),
+        }
+    return signature
+
+
+def publish_anonymized_tree(temporary_path, anonymized_path):
+    """Publish a verified copy without relying on Windows directory rename."""
+    temporary_path = Path(temporary_path).resolve()
+    anonymized_path = Path(anonymized_path).resolve()
+    if anonymized_path.exists():
+        raise FileExistsError(
+            "Refusing to overwrite anonymized submissions: "
+            f"{anonymized_path}"
+        )
+
+    expected_signature = tree_signature(temporary_path)
+    try:
+        shutil.copytree(temporary_path, anonymized_path)
+        actual_signature = tree_signature(anonymized_path)
+        if actual_signature != expected_signature:
+            raise RuntimeError(
+                "Published anonymized artifact tree failed integrity verification."
+            )
+    except Exception:
+        if anonymized_path.exists():
+            shutil.rmtree(anonymized_path)
+        raise
+
+    try:
+        shutil.rmtree(temporary_path)
+    except OSError:
+        # The published tree is complete and verified. A locked staging copy may
+        # be cleaned up manually without affecting the grading boundary.
+        pass
+
+
 def write_submission_manifest(project_path):
     """
     Process submissions and save:
@@ -312,17 +471,61 @@ def write_submission_manifest(project_path):
 
     project_path = Path(project_path).resolve()
 
-    (
-        submissions,
-        student_map,
-        unparsed_folders,
-    ) = process_submissions(project_path)
-
     grader_path = project_path / "grader"
     grader_path.mkdir(
         parents=True,
         exist_ok=True,
     )
+
+    anonymized_path = grader_path / ANONYMIZED_SUBMISSIONS_FOLDER
+    if anonymized_path.exists():
+        raise FileExistsError(
+            "Refusing to overwrite anonymized submissions: "
+            f"{anonymized_path}"
+        )
+
+    temporary_path = Path(tempfile.mkdtemp(
+        prefix=".anonymized_submissions_",
+        dir=grader_path,
+    ))
+
+    try:
+        (
+            submissions,
+            student_map,
+            unparsed_folders,
+        ) = process_submissions(
+            project_path,
+            anonymized_root=temporary_path,
+        )
+
+        manifest = {
+            "manifest_version": "2.0",
+            "anonymization": {
+                "status": "validated",
+                "artifact_root": "grader/anonymized_submissions",
+                "known_text_identities_redacted": True,
+                "image_pixels_redacted": False,
+                "image_identity_limitation": (
+                    "Image pixels were not redacted. Screenshots may require "
+                    "instructor review if visible identity is suspected."
+                ),
+            },
+            "submission_count": len(submissions),
+            "unparsed_folder_count": len(unparsed_folders),
+            "unparsed_folders": [
+                f"Unparsed_{index:03d}"
+                for index, _ in enumerate(unparsed_folders, start=1)
+            ],
+            "submissions": submissions,
+        }
+
+        validate_anonymized_manifest(manifest, student_map)
+        publish_anonymized_tree(temporary_path, anonymized_path)
+    except Exception:
+        if temporary_path.exists():
+            shutil.rmtree(temporary_path)
+        raise
 
     manifest_path = (
         grader_path
@@ -333,16 +536,6 @@ def write_submission_manifest(project_path):
         grader_path
         / "student_map.json"
     )
-
-    manifest = {
-        "manifest_version": "1.0",
-        "submission_count": len(submissions),
-        "unparsed_folder_count": len(
-            unparsed_folders
-        ),
-        "unparsed_folders": unparsed_folders,
-        "submissions": submissions,
-    }
 
     with manifest_path.open(
         "w",

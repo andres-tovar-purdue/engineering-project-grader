@@ -4,6 +4,7 @@ from pathlib import Path
 from project_grader.project_inspection import inspect_project
 from project_grader.project_manifest import write_project_manifest
 from project_grader.project_preparation import prepare_project
+from project_grader.grading import grade_submissions
 from project_grader.spec_validation import validate_grading_spec
 from project_grader.spec_generation import generate_grading_spec
 from project_grader.submission_processing import write_submission_manifest
@@ -104,6 +105,17 @@ def main():
     )
 
     prepare_parser.add_argument(
+        "project_path",
+        help="Path to the project folder."
+    )
+
+    # grade-submissions command
+    grade_parser = subparsers.add_parser(
+        "grade-submissions",
+        help="Create preliminary grading reports for anonymized submissions."
+    )
+
+    grade_parser.add_argument(
         "project_path",
         help="Path to the project folder."
     )
@@ -261,3 +273,19 @@ def main():
             f"Submissions found: "
             f"{manifest['submission_count']}"
         )
+
+        print(
+            "Anonymized artifacts written beneath: "
+            f"{Path(args.project_path).resolve() / 'grader' / 'anonymized_submissions'}"
+        )
+
+    elif args.command == "grade-submissions":
+        run_path, json_path, csv_path, run = grade_submissions(
+            args.project_path
+        )
+
+        print(f"Preliminary grading run written to: {run_path}")
+        print(f"Structured results: {json_path}")
+        print(f"Instructor review report: {csv_path}")
+        print(f"Submissions graded: {run['submission_count']}")
+        print("Final instructor scores were not assigned.")
