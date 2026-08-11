@@ -1,15 +1,22 @@
 # engineering-project-grader
 Modular AI grading agent for engineering programming projects
 
-The workflow has been validated through completed grading demonstrations for
-MSPE 29800 Projects 2 and 3. It produces rubric-based preliminary assessments,
-criterion-level evidence, task-by-task feedback, instructor-review artifacts,
-and Brightspace-ready files. The instructor reviews and approves every final
-grade, and submission to Brightspace remains a manual step.
+## Human-Supervised Grading Workflow
 
-Codex currently serves as the conversational coding and workflow-orchestration
-interface. The grader application separately calls the OpenAI API to produce its
-preliminary rubric-based assessments.
+The grader combines deterministic processing, AI-assisted rubric evaluation, and instructor review. AI-generated assessments remain preliminary until the instructor verifies the evidence and approves the final scores and feedback.
+
+```mermaid
+flowchart TD
+    A["Project instructions<br/>and rubric"] --> B["Prepare grading specification"]
+    B --> C["Organize and<br/>anonymize submissions"]
+    C --> D["AI-assisted<br/>rubric assessment"]
+    D --> E["Criterion scores,<br/>evidence, and feedback"]
+    E --> F{"Instructor review"}
+    F -->|Revise criteria or rules| D
+    F -->|Approve or adjust| G["Finalize scores and<br/>task-by-task feedback"]
+    G --> H["Brightspace-ready<br/>grading files"]
+    H --> I["Instructor verifies and<br/>enters grades manually"]
+```
 
 ## Project preparation
 
