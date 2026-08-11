@@ -44,6 +44,7 @@
         "deductions",
         "justification",
         "evidence",
+        "evidence_state",
         "confidence",
         "review_required",
         "review_reasons"
@@ -56,10 +57,23 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["points", "reason"],
+            "required": ["points", "reason", "deduction_type", "cause_id", "independent_requirement"],
             "properties": {
               "points": {"type": "number", "exclusiveMinimum": 0},
-              "reason": {"type": "string", "minLength": 1}
+              "reason": {"type": "string", "minLength": 1},
+              "deduction_type": {
+                "type": "string",
+                "enum": [
+                  "demonstrated_technical_error",
+                  "missing_required_deliverable",
+                  "missing_required_documentation",
+                  "inadequate_required_evidence",
+                  "hidden_detail_unverifiable",
+                  "downstream_consequence"
+                ]
+              },
+              "cause_id": {"type": "string", "minLength": 1},
+              "independent_requirement": {"type": "boolean"}
             }
           }
         },
@@ -84,6 +98,17 @@
               "location": {"type": "string"}
             }
           }
+        },
+        "evidence_state": {
+          "type": "string",
+          "enum": [
+            "verified",
+            "demonstrated_error",
+            "missing_required_evidence",
+            "inadequate_required_evidence",
+            "hidden_detail_unverifiable",
+            "mixed"
+          ]
         },
         "confidence": {
           "type": "string",

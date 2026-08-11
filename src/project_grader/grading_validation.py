@@ -3,6 +3,11 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
+from project_grader.rounding import (
+    DEFAULT_ROUNDING_POLICY,
+    apply_rounding,
+)
+
 
 def load_json(path):
     with Path(path).open("r", encoding="utf-8") as file:
@@ -24,7 +29,12 @@ def validate_model_grading_response(response, schema_path):
         raise ValueError("Invalid grading response:\n" + "\n".join(messages))
 
 
-def calculate_grading_result(response, spec, submission):
+def calculate_grading_result(
+    response,
+    spec,
+    submission,
+    rounding_policy=DEFAULT_ROUNDING_POLICY,
+):
     """Validate semantic references and calculate all totals locally."""
     if response["student_id"] != submission["student_id"]:
         raise ValueError("Grading response student_id does not match submission.")
@@ -47,9 +57,11 @@ def calculate_grading_result(response, spec, submission):
 
     artifact_paths = {file["path"] for file in submission["files"]}
     task_results = []
+    raw_task_subtotals = []
     all_review_reasons = list(submission.get("review_flags", []))
     all_review_reasons.extend(response["review_reasons"])
     any_review = bool(all_review_reasons) or response["review_required"]
+    deduction_causes = {}
 
     for task in spec["tasks"]:
         criterion_results = []
@@ -65,6 +77,20 @@ def calculate_grading_result(response, spec, submission):
             deduction_total = sum(
                 float(item["points"]) for item in result["deductions"]
             )
+            for deduction in result["deductions"]:
+                deduction_type = deduction["deduction_type"]
+                if deduction_type in {
+                    "hidden_detail_unverifiable",
+                    "downstream_consequence",
+                }:
+                    raise ValueError(
+                        f"{criterion['criterion_id']} uses prohibited deduction "
+                        f"type {deduction_type}."
+                    )
+                cause_id = deduction["cause_id"]
+                deduction_causes.setdefault(cause_id, []).append(
+                    (criterion["criterion_id"], deduction["independent_requirement"])
+                )
             if abs((score + deduction_total) - maximum) > 1e-6:
                 raise ValueError(
                     f"{criterion['criterion_id']} score plus deductions "
@@ -94,23 +120,57 @@ def calculate_grading_result(response, spec, submission):
 
         if abs(task_score - sum(item["agent_score"] for item in criterion_results)) > 1e-6:
             raise ValueError(f"Local arithmetic failed for task {task['task_id']}.")
+        raw_task_subtotals.append(round(task_score, 10))
         task_results.append({
             "task_id": task["task_id"],
             "title": task["title"],
-            "agent_score": round(task_score, 6),
+            "agent_score": None,
+            "raw_task_subtotal": round(task_score, 10),
+            "rounded_task_subtotal": None,
             "max_points": task["max_points"],
             "feedback": feedback[task["task_id"]],
             "criteria": criterion_results,
         })
 
-    total = round(sum(task["agent_score"] for task in task_results), 6)
+    repeated_causes = {
+        cause_id: uses
+        for cause_id, uses in deduction_causes.items()
+        if len({criterion_id for criterion_id, _ in uses}) > 1
+        and not all(independent for _, independent in uses)
+    }
+    if repeated_causes:
+        cause_id = sorted(repeated_causes)[0]
+        raise ValueError(
+            "Repeated deduction cause is not marked as independently scored: "
+            f"{cause_id}."
+        )
+
     declared_total = float(spec["project"]["total_points"])
+    rounding = apply_rounding(
+        raw_task_subtotals,
+        [task["max_points"] for task in spec["tasks"]],
+        declared_total,
+        rounding_policy,
+    )
+    for task, rounded in zip(
+        task_results,
+        rounding["rounded_task_subtotals"],
+    ):
+        task["rounded_task_subtotal"] = rounded
+        task["agent_score"] = rounded
+
+    total = rounding["final_rounded_grade"]
     if total < 0 or total > declared_total:
         raise ValueError("Calculated total is outside the project point range.")
 
     return {
         "student_id": submission["student_id"],
         "total_agent_score": total,
+        "raw_total_before_rounding": rounding["raw_total_before_rounding"],
+        "rounded_task_total": rounding["rounded_task_total"],
+        "final_rounded_grade": rounding["final_rounded_grade"],
+        "total_rounding_adjustment": rounding["total_rounding_adjustment"],
+        "rounding_policy": rounding["rounding_policy"],
         "total_instructor_score": None,
         "project_total_points": spec["project"]["total_points"],
         "tasks": task_results,

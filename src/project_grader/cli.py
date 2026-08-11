@@ -1,10 +1,13 @@
 import argparse
+import json
 from pathlib import Path
 
 from project_grader.project_inspection import inspect_project
 from project_grader.project_manifest import write_project_manifest
 from project_grader.project_preparation import prepare_project
 from project_grader.grading import grade_submissions
+from project_grader.finalization import finalize_grading
+from project_grader.rounding import DEFAULT_ROUNDING_POLICY, ROUNDING_POLICIES
 from project_grader.spec_validation import validate_grading_spec
 from project_grader.spec_generation import generate_grading_spec
 from project_grader.submission_processing import write_submission_manifest
@@ -118,6 +121,38 @@ def main():
     grade_parser.add_argument(
         "project_path",
         help="Path to the project folder."
+    )
+
+    finalize_parser = subparsers.add_parser(
+        "finalize-grading",
+        help="Create offline instructor and student-facing final reports.",
+    )
+    finalize_parser.add_argument("project_path", help="Path to the project folder.")
+    finalize_parser.add_argument("--run", required=True, help="Baseline run version.")
+    finalize_parser.add_argument(
+        "--score",
+        action="append",
+        required=True,
+        help="Approved score as Student_###=POINTS.",
+    )
+    finalize_parser.add_argument(
+        "--criterion-score",
+        action="append",
+        default=[],
+        help="Criterion override as Student_###:CRITERION_ID=POINTS.",
+    )
+    grade_parser.add_argument(
+        "--model",
+        help=(
+            "Responses API model override. Defaults to OPENAI_MODEL when set, "
+            "otherwise gpt-5.4-mini."
+        ),
+    )
+    grade_parser.add_argument(
+        "--rounding-policy",
+        choices=sorted(ROUNDING_POLICIES),
+        default=DEFAULT_ROUNDING_POLICY,
+        help="Task/project rounding policy for new preliminary grades.",
     )
 
     args = parser.parse_args()
@@ -281,7 +316,9 @@ def main():
 
     elif args.command == "grade-submissions":
         run_path, json_path, csv_path, run = grade_submissions(
-            args.project_path
+            args.project_path,
+            model=args.model,
+            rounding_policy=args.rounding_policy,
         )
 
         print(f"Preliminary grading run written to: {run_path}")
@@ -289,3 +326,25 @@ def main():
         print(f"Instructor review report: {csv_path}")
         print(f"Submissions graded: {run['submission_count']}")
         print("Final instructor scores were not assigned.")
+
+    elif args.command == "finalize-grading":
+        approved_scores = {}
+        for item in args.score:
+            student_id, score = item.split("=", 1)
+            approved_scores[student_id] = float(score)
+        overrides = {}
+        for item in args.criterion_score:
+            key, score = item.split("=", 1)
+            student_id, criterion_id = key.split(":", 1)
+            overrides[(student_id, criterion_id)] = float(score)
+        output_path, csv_path, txt_paths, validation = finalize_grading(
+            args.project_path,
+            args.run,
+            approved_scores,
+            overrides,
+        )
+        print(f"Finalization written to: {output_path}")
+        print(f"Instructor summary: {csv_path}")
+        for path in txt_paths:
+            print(f"Student feedback: {path}")
+        print(f"Offline validation: {json.dumps(validation, sort_keys=True)}")

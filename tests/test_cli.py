@@ -40,8 +40,58 @@ class CliTests(unittest.TestCase):
         with patch("sys.stdout", output):
             main()
 
-        grade.assert_called_once_with("demo")
+        grade.assert_called_once_with(
+            "demo",
+            model=None,
+            rounding_policy="generous-v1",
+        )
         self.assertIn("Final instructor scores were not assigned", output.getvalue())
+
+    @patch("project_grader.cli.grade_submissions")
+    @patch(
+        "sys.argv",
+        ["project_grader", "grade-submissions", "demo", "--model", "test-model"],
+    )
+    def test_grade_submissions_model_override(self, grade):
+        grade.return_value = (
+            Path("grader/grading_runs/run_v001"),
+            Path("grader/grading_runs/run_v001/grading_results.json"),
+            Path("grader/grading_runs/run_v001/preliminary_grading_report.csv"),
+            {"submission_count": 2},
+        )
+        with patch("sys.stdout", new=io.StringIO()):
+            main()
+        grade.assert_called_once_with(
+            "demo",
+            model="test-model",
+            rounding_policy="generous-v1",
+        )
+
+    @patch("project_grader.cli.grade_submissions")
+    @patch(
+        "sys.argv",
+        [
+            "project_grader",
+            "grade-submissions",
+            "demo",
+            "--rounding-policy",
+            "exact-v1",
+        ],
+    )
+    def test_grade_submissions_rounding_override(self, grade):
+        grade.return_value = (
+            Path("grader/grading_runs/run_v001"),
+            Path("grader/grading_runs/run_v001/grading_results.json"),
+            Path("grader/grading_runs/run_v001/preliminary_grading_report.csv"),
+            {"submission_count": 2},
+        )
+        with patch("sys.stdout", new=io.StringIO()):
+            main()
+        grade.assert_called_once_with(
+            "demo",
+            model=None,
+            rounding_policy="exact-v1",
+        )
 
 
 if __name__ == "__main__":

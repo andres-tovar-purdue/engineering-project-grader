@@ -9,17 +9,20 @@ from datetime import datetime
 from pathlib import Path
 
 from project_grader.ai_client import get_client
+from project_grader.artifact_validation import preflight_slx_artifacts
 from project_grader.grading_validation import (
     calculate_grading_result,
     validate_model_grading_response,
 )
 from project_grader.spec_validation import validate_grading_spec
+from project_grader.rounding import DEFAULT_ROUNDING_POLICY, ROUNDING_POLICIES
 
 
 GRADING_SPEC_FILENAME = "grading_spec_v001.json"
 SUBMISSION_MANIFEST_FILENAME = "submission_manifest.json"
 ANONYMIZED_FOLDER = "anonymized_submissions"
 GRADING_RUNS_FOLDER = "grading_runs"
+DEFAULT_GRADING_MODEL = "gpt-5.4-mini"
 TEXT_EXTENSIONS = {".m", ".py", ".txt", ".md", ".csv", ".json", ".ipynb"}
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
 FORBIDDEN_MANIFEST_KEYS = {
@@ -37,6 +40,34 @@ def parse_json_response(text):
         text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
         text = re.sub(r"\s*```$", "", text)
     return json.loads(text)
+
+
+def _usage_value(value, key, default=None):
+    if value is None:
+        return default
+    if isinstance(value, dict):
+        return value.get(key, default)
+    return getattr(value, key, default)
+
+
+def extract_response_usage(response):
+    """Normalize Responses API usage when the SDK returns it."""
+    usage = _usage_value(response, "usage")
+    if usage is None:
+        return None
+    input_details = _usage_value(usage, "input_tokens_details", {})
+    output_details = _usage_value(usage, "output_tokens_details", {})
+    return {
+        "input_tokens": int(_usage_value(usage, "input_tokens", 0) or 0),
+        "cached_input_tokens": int(
+            _usage_value(input_details, "cached_tokens", 0) or 0
+        ),
+        "output_tokens": int(_usage_value(usage, "output_tokens", 0) or 0),
+        "reasoning_tokens": int(
+            _usage_value(output_details, "reasoning_tokens", 0) or 0
+        ),
+        "total_tokens": int(_usage_value(usage, "total_tokens", 0) or 0),
+    }
 
 
 def _find_forbidden_keys(value):
@@ -146,11 +177,12 @@ def load_grading_inputs(project_path):
 
 
 def build_student_input(spec, submission, student_root, instructions):
-    """Build one multimodal request without reading binary SLX contents."""
+    """Build one multimodal request without parsing or executing SLX models."""
     content = []
     artifact_inventory = []
     text_sections = []
     image_limitations = []
+    slx_preflight = preflight_slx_artifacts(submission, student_root)
 
     for file_info in submission["files"]:
         relative_path = file_info["path"]
@@ -189,10 +221,14 @@ def build_student_input(spec, submission, student_root, instructions):
             })
             image_limitations.append(relative_path)
         elif extension == ".slx":
+            preflight = slx_preflight[relative_path]
             text_sections.append(
-                f"ARTIFACT: {relative_path}\nEVIDENCE TYPE: file_presence\n"
-                "Binary SLX file is present. Its internal model structure, "
-                "connections, parameters, and settings were not inspected."
+                f"ARTIFACT: {relative_path}\n"
+                "EVIDENCE TYPE: structural_artifact_preflight\n"
+                f"SLX PREFLIGHT: {json.dumps(preflight, sort_keys=True)}\n"
+                "This preflight establishes artifact/container validity only. "
+                "Do not infer model blocks, connections, parameters, settings, "
+                "or behavior from the SLX package."
             )
         else:
             text_sections.append(
@@ -262,7 +298,12 @@ def render_preliminary_csv(results, spec):
     return stream.getvalue()
 
 
-def grade_submissions(project_path, client=None):
+def grade_submissions(
+    project_path,
+    client=None,
+    model=None,
+    rounding_policy=DEFAULT_ROUNDING_POLICY,
+):
     """Grade each anonymized submission independently and write a draft run."""
     project_path = Path(project_path).resolve()
     (
@@ -281,8 +322,9 @@ def grade_submissions(project_path, client=None):
     ).read_text(encoding="utf-8")
 
     client = client or get_client()
-    model = os.getenv("OPENAI_MODEL", "gpt-5")
+    selected_model = model or os.getenv("OPENAI_MODEL") or DEFAULT_GRADING_MODEL
     results = []
+    per_student_usage = []
 
     for submission in manifest["submissions"]:
         student_root = anonymized_root / submission["student_id"]
@@ -293,7 +335,7 @@ def grade_submissions(project_path, client=None):
             instructions,
         )
         response = client.responses.create(
-            model=model,
+            model=selected_model,
             instructions=(
                 "You produce preliminary, evidence-based grading for instructor "
                 "review. Never produce a final instructor grade."
@@ -315,15 +357,46 @@ def grade_submissions(project_path, client=None):
             )
         model_result = parse_json_response(response.output_text)
         validate_model_grading_response(model_result, response_schema_path)
-        results.append(
-            calculate_grading_result(model_result, spec, submission)
+        calculated = calculate_grading_result(
+            model_result,
+            spec,
+            submission,
+            rounding_policy=rounding_policy,
         )
+        usage = extract_response_usage(response)
+        calculated["api_usage"] = usage
+        per_student_usage.append({
+            "student_id": submission["student_id"],
+            "available": usage is not None,
+            **(usage or {}),
+        })
+        results.append(calculated)
+
+    usage_fields = (
+        "input_tokens",
+        "cached_input_tokens",
+        "output_tokens",
+        "reasoning_tokens",
+        "total_tokens",
+    )
+    usage_totals = {
+        field: sum(item.get(field, 0) for item in per_student_usage)
+        for field in usage_fields
+    }
 
     run = {
         "run_version": None,
         "status": "preliminary_instructor_review_required",
         "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
-        "model": model,
+        "model": selected_model,
+        "rounding_policy": dict(ROUNDING_POLICIES[rounding_policy]),
+        "api_usage": {
+            "complete": all(item["available"] for item in per_student_usage),
+            "per_student": per_student_usage,
+            "totals": usage_totals,
+        },
+        "estimated_cost": None,
+        "pricing_assumptions": None,
         "grading_spec": spec_path.name,
         "submission_manifest": manifest_path.name,
         "submission_count": len(results),
