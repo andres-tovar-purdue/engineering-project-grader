@@ -12,6 +12,8 @@ from project_grader.spec_validation import validate_grading_spec
 from project_grader.spec_generation import generate_grading_spec
 from project_grader.submission_processing import write_submission_manifest
 
+from project_grader.project_initialization import init_project
+
 import os
 
 from dotenv import load_dotenv
@@ -27,6 +29,17 @@ def main():
     subparsers = parser.add_subparsers(
         dest="command",
         required=True
+    )
+
+    # init-project command
+    init_parser = subparsers.add_parser(
+        "init-project",
+        help="Create a new grading project workspace."
+    )
+
+    init_parser.add_argument(
+        "project_name",
+        help="Name of the grading project, e.g. mspe_49600_fa26_pr01."
     )
 
     # prepare-project command
@@ -157,7 +170,33 @@ def main():
 
     args = parser.parse_args()
 
-    if args.command == "prepare-project":
+    # command handling section
+    if args.command == "init-project":
+        project_path = init_project(args.project_name)
+
+        print()
+        print("Project initialized successfully:")
+        print(f"  {project_path}")
+        print()
+        print("Created folders:")
+
+        for folder_name in [
+            "project",
+            "datasets",
+            "rubric",
+            "reference",
+            "submissions",
+            "grader",
+        ]:
+            print(f"  - {folder_name}\\")
+
+        print()
+        print("Next steps:")
+        print("  1. Place assignment instructions in project\\")
+        print("  2. Place instructor-provided datasets in datasets\\")
+        print("  3. Place Brightspace submissions in submissions\\")
+
+    elif args.command == "prepare-project":
         result = prepare_project(args.project_path)
 
         print("Draft project preparation artifacts written:")
