@@ -5,6 +5,7 @@ from pathlib import Path
 
 from project_grader.ai_client import get_client
 from project_grader.project_manifest import build_project_manifest
+from project_grader.source_extraction import extract_pdf
 from project_grader.spec_validation import validate_grading_spec
 
 
@@ -22,6 +23,10 @@ TEXT_EXTENSIONS = {
     ".csv",
     ".py",
     ".m",
+}
+
+PDF_EXTENSIONS = {
+    ".pdf",
 }
 
 
@@ -52,6 +57,20 @@ def read_text_file(path):
     )
 
 
+def read_pdf_file(path):
+    """
+    Extract text from a PDF while preserving page labels.
+    """
+
+    pages = extract_pdf(path)
+
+    return "\n\n".join(
+        f"[Page {page['page']}]\n{page['text']}"
+        for page in pages
+        if page["text"]
+    )
+
+
 def collect_project_sources(project_path):
     """
     Collect instructor-controlled source materials used to
@@ -75,7 +94,13 @@ def collect_project_sources(project_path):
             if not path.is_file():
                 continue
 
-            if path.suffix.lower() not in TEXT_EXTENSIONS:
+            extension = path.suffix.lower()
+
+            if extension in TEXT_EXTENSIONS:
+                content = read_text_file(path)
+            elif extension in PDF_EXTENSIONS and folder_name == "project":
+                content = read_pdf_file(path)
+            else:
                 continue
 
             relative_path = path.relative_to(project_path)
@@ -85,7 +110,7 @@ def collect_project_sources(project_path):
                     "source_id": make_source_id(relative_path),
                     "source_type": source_type,
                     "path": relative_path.as_posix(),
-                    "content": read_text_file(path),
+                    "content": content,
                 }
             )
 
@@ -138,51 +163,78 @@ IMPORTANT RULES:
 1. Use only the supplied project materials as authoritative
    evidence about what students were asked to do.
 
-2. Do not invent grading requirements.
+2. Treat the ORIGINAL PUBLISHED ASSIGNMENT material in project/
+   as the primary authority for student requirements. Generated
+   project_instructions.md, instructor rubric/guidance, and the
+   reference solution may clarify grading, but they must not add
+   requirements that are absent from the published assignment.
 
-3. The project instructions define the student requirements.
+3. Do not invent grading requirements.
 
 4. Instructor rubric/guidance may define grading policy and
-   partial-credit rules.
+   partial-credit rules when the published assignment does not
+   specify criterion-level allocations.
 
 5. A reference solution is evidence of one valid approach.
    Do not silently treat it as the only acceptable solution
    unless the published assignment requires that method.
 
-6. If the materials are ambiguous, incomplete, contradictory,
-   or do not define enough information for a defensible
-   grading rule, record the issue in known_ambiguities.
+6. Use known_ambiguities ONLY for unresolved grading decisions
+   that require explicit instructor judgment before grading can
+   be defensibly approved.
 
-7. Do not silently resolve ambiguities.
+7. Do NOT create a blocking ambiguity merely because:
+   - the assignment explicitly allows student choice;
+   - multiple technically valid implementations are permitted;
+   - an engineering judgment is sample-dependent and can be
+     evaluated from the student's evidence;
+   - a filename/export mechanism is not further specified but
+     the required deliverable itself is clear; or
+   - the JSON task structure differs from the assignment's
+     section labels without changing points or requirements.
 
-8. Where point allocations are not explicitly defined below
-   the task level, you may propose a reasonable draft
-   allocation, but identify that issue in known_ambiguities
-   so the instructor can approve or revise it.
+8. Represent non-blocking flexibility with acceptable_alternatives,
+   evidence requirements, feedback guidance, or review triggers
+   rather than known_ambiguities.
 
-9. Set:
-      schema_version = "1.0"
-      spec_version = "0.1"
-      status = "draft"
+9. If the materials are genuinely contradictory, incomplete, or
+   do not define enough information for a defensible grading rule,
+   record the issue in known_ambiguities and do not silently resolve it.
 
-10. Use the exact SOURCE IDs supplied below when populating
+10. Where criterion-level point allocations are not explicitly
+    published, you may propose a reasonable draft allocation.
+    Record that allocation as a known ambiguity ONLY when the
+    instructor must explicitly accept or revise it before grading.
+
+11. Set:
+       schema_version = "1.0"
+       spec_version = "0.1"
+       status = "draft"
+
+12. Use the exact SOURCE IDs supplied below when populating
     source_refs.
 
-11. Criterion points must sum to their task max_points.
+13. Criterion points must sum to their task max_points.
 
-12. Task max_points must sum to the project total_points.
+14. Task max_points must sum to project.total_points exactly.
 
-13. Include evidence requirements and review triggers when
+15. If the published assignment assigns points to a separate
+    Deliverables section, represent that scored section as a task
+    in tasks in addition to listing the required files under
+    deliverables. Do not leave published deliverable points outside
+    the scored task total.
+
+16. Include evidence requirements and review triggers when
     appropriate.
 
-14. Preserve explicitly required methods, functions,
+17. Preserve explicitly required methods, functions,
     software, filenames, variable ordering, plots, model
     structure, deliverables, and reproducibility requirements.
 
-15. Allow technically valid alternatives when the published
+18. Allow technically valid alternatives when the published
     project does not prescribe a unique implementation.
 
-16. Return ONLY a JSON object. Do not use Markdown fences,
+19. Return ONLY a JSON object. Do not use Markdown fences,
     explanations, or commentary outside the JSON.
 
 JSON SCHEMA:
@@ -219,6 +271,39 @@ def parse_json_response(text):
         )
 
     return json.loads(text)
+
+
+def validate_scoring_totals(spec):
+    """
+    Verify that criterion, task, and project point totals are internally consistent.
+    """
+
+    task_total = 0.0
+
+    for task in spec["tasks"]:
+        criterion_total = sum(
+            float(criterion["max_points"])
+            for criterion in task["criteria"]
+        )
+        task_max = float(task["max_points"])
+
+        if abs(criterion_total - task_max) > 1e-9:
+            raise RuntimeError(
+                f"Task {task['task_id']} criterion points sum to "
+                f"{criterion_total:g}, but task max_points is {task_max:g}."
+            )
+
+        task_total += task_max
+
+    project_total = float(spec["project"]["total_points"])
+
+    if abs(task_total - project_total) > 1e-9:
+        raise RuntimeError(
+            f"Grading specification task points sum to {task_total:g}, "
+            f"but project total_points is {project_total:g}. "
+            "If the published assignment has a separately scored Deliverables "
+            "section, include it as a task."
+        )
 
 
 def generate_grading_spec(
@@ -283,6 +368,9 @@ def generate_grading_spec(
     spec = parse_json_response(
         response.output_text
     )
+
+    # Enforce scoring consistency before writing the draft specification.
+    validate_scoring_totals(spec)
 
     grader_path = project_path / "grader"
     grader_path.mkdir(
